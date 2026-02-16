@@ -6,7 +6,12 @@ from typing import List, Dict, Tuple
 class VectorDBManager:
     """Manages a ChromaDB vector database with Ollama embeddings."""
     def __init__(self, collection_name: str = "cat_facts", persist_directory: str = "./chroma_db"):
-        self.client = chromadb.PersistentClient(path=persist_directory)
+        # # Disable telemetry and configure settings 
+        settings = Settings(
+            anonymized_telemetry=False,  # Disable telemetry for privacy
+            allow_reset=True,  # Allow resetting the database for testing
+        )
+        self.client = chromadb.PersistentClient(path=persist_directory, settings=settings)
         # Try to get the collection, if it doesn't exist, create it
         try:
             self.collection = self.client.get_collection(name=collection_name)
@@ -46,8 +51,9 @@ class VectorDBManager:
             metadata = [{"source": f"doc_{i}", "text_preview": doc[:50]} for i, doc in enumerate(documents)]
 
         # add to collection
-        # Generate unique IDs for each document
-        ids = [f"doc_{i}" for i in range(len(documents))]
+        # Generate unique IDs for each document based on the current count in the collection
+        current_count = self.collection.count()
+        ids = [f"doc_{current_count + i}" for i in range(len(documents))]
 
         self.collection.add(
             ids=ids,

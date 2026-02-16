@@ -80,7 +80,7 @@ class MultiAgentRAG:
                 "content": doc.strip(),# the retrieved document content
                 "similarity": 1 - distance,# the similarity score
                 "metadata": metadata,
-                "relevance": "HIGH" if (1 - distance) > 0.8 else "MEDIUM" if (1 - distance) > 0.5 else "LOW"
+                "relevance": "HIGH" if (1 - distance) > 0.6 else "MEDIUM" if (1 - distance) > 0.4 else "LOW"
             })
             print(f"Retrieved Doc {i+1}: Similarity={1 - distance:.4f}, Source={metadata.get('source', 'N/A')}")
 
@@ -102,15 +102,23 @@ class MultiAgentRAG:
         retrieved_docs = state["retrieved_docs"]
 
         # quality analysis
-        #calculate a quality score based on relevance
-        high_relevance = sum(1 for doc in retrieved_docs if doc["relevance"] == "HIGH")
-        total_docs = len(retrieved_docs)
-        quality_score = high_relevance / total_docs if total_docs > 0 else 0
+        # calculate weighted score and average similarity
+        # then combine them into a final quality score between 0 and 1
+        if total_docs := len(retrieved_docs) > 0:
+            weighted_score = sum((1 if doc["relevance"] == "HIGH" else 0.6 if doc["relevance"] == "MEDIUM" else 0.3) for doc in retrieved_docs) / total_docs
+
+            avg_similarity = sum(doc["similarity"] for doc in retrieved_docs) / total_docs
+
+            # combine relevance and similarity into a quality score
+            quality_score = (weighted_score * 0.7) + (avg_similarity * 0.3)
+        else:
+            quality_score = 0.0
 
         state["quality_score"] = quality_score
-        print(f" Quality Score: {quality_score:.2f}({high_relevance}/{total_docs} highly relevant)")
+        high_relevance = sum(1 for doc in retrieved_docs if doc["relevance"] == "HIGH")
+        print(f" Quality Score: {quality_score:.2f} ({high_relevance} HIGH, avg similarity: {avg_similarity:.2f})")
 
-        #facrt verification
+        # fact verification
         docs_text = "\n".join([f"{i+1}. {doc['content']}" for i, doc in enumerate(retrieved_docs)])
 
         analysis_prompt = prompts.analyzer_verification_prompt.format(
@@ -121,7 +129,7 @@ class MultiAgentRAG:
         
         analysis_response = ollama.chat(
             model=self.llm_model,
-            messages=[{"role": "user", "content": "Your task is to be a critical fact-checker. Be thorough and skeptical."},
+            messages=[{"role": "user", "content": "Your task is to be a helpful fact-checker. Extract clear, accurate facts from documents to answer user queries."},
                       {"role": "user", "content": analysis_prompt}],
             stream=False
         )
@@ -129,18 +137,42 @@ class MultiAgentRAG:
         verified_contents = analysis_response['message']['content']
 
         #parse the verified facts
-        if "INSUFFICIENT_DATA" in verified_contents:
+        if "INSUFFICIENT_DATA" in verified_contents.upper():
             verified_facts = ["Insufficient data to verify facts."]
             print("Analyzer found insufficient data to verify facts.")
         else:
-            verified_facts = [line.strip() for line in verified_contents.split('\n') if line.strip() and (line.strip().startswith('-') or line.strip().startswith('•') or line.strip()[0].isdigit())]
-            print("Analyzer found the following verified facts:")
-            for fact in verified_facts:
-                print(f" - {fact}")
-
+            # Parse facts - look for bullet points or numbered items
+            lines = verified_contents.split('\n')
+            verified_facts = []
+            for line in lines:
+                line = line.strip()
+                if not line:
+                    continue
+                # Check if line starts with bullet/number markers
+                if (line.startswith('-') or 
+                    line.startswith('•') or 
+                    line.startswith('*') or
+                    (len(line) > 0 and line[0].isdigit() and ('. ' in line[:4] or ') ' in line[:4]))):
+                    # Clean up the marker
+                    cleaned = line.lstrip('-•*0123456789.) ').strip()
+                    if cleaned:
+                        verified_facts.append(cleaned)
+            
+            # If no bullet points found, but there's content, treat each non-empty line as a fact
+            if not verified_facts and verified_contents.strip():
+                verified_facts = [line.strip() for line in lines if line.strip() and len(line.strip()) > 10]
+            
+            if verified_facts:
+                print(f"Analyzer found {len(verified_facts)} verified facts:")
+                for fact in verified_facts:
+                    print(f" - {fact}")
+            else:
+                # Fallback if parsing fails
+                verified_facts = ["Insufficient data to verify facts."]
+                print("Analyzer could not parse facts from response.")
+        
         state["verified_facts"] = verified_facts
-        state["agent_logs"].append(f"Analyzer assigned quality score of {quality_score:.2f} and verified {len(verified_facts)} facts.")
-
+        state["agent_logs"].append(f"Analyzer assigned a quality score of {quality_score:.2f} and extracted {len(verified_facts)} verified facts.")
         return state
 
     def answer_generator(self, state: AgentState) -> AgentState:
@@ -182,8 +214,9 @@ class MultiAgentRAG:
             query=query,
             query_intent=query_intent,
             answer_style=answer_style,
-            verified_facts=facts_text,
-            docs_context=docs_context
+            facts_text=facts_text,
+            docs_context=docs_context,
+            quality_score=quality_score
         )
 
         response = ollama.chat(
