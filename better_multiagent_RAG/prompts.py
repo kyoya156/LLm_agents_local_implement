@@ -1,45 +1,73 @@
+retriever_thought_prompt = """Query: {query}
+                            Memory Context: {memory_context}
+
+                            THOUGHT: Can this be answered from memory, or do I need to search the knowledge base?
+                            Respond with just: use_memory or search_knowledge"""
+
 retriever_intent_prompt = """Analyze this query and classify its intent in one word:
-Query: "{query}"
+                            Query: "{query}"
 
-Is this asking for:
-- DEFINITION (what is X?)
-- EXPLANATION (how/why does X work?)
-- COMPARISON (difference between X and Y?)
-- FACT (specific factual information?)
-- LIST (give me examples/types of X?)
+                            Is this asking for:
+                            - DEFINITION (what is X?)
+                            - EXPLANATION (how/why does X work?)
+                            - COMPARISON (difference between X and Y?)
+                            - FACT (specific factual information?)
+                            - LIST (give me examples/types of X?)
+                            - PERSONAL (asking about user preferences or past interactions?)
 
-Respond with just ONE word: DEFINITION, EXPLANATION, COMPARISON, FACT, or LIST."""
+                            Respond with just ONE word: DEFINITION, EXPLANATION, COMPARISON, FACT, LIST OR PERSONAL."""
 
-analyzer_verification_prompt = """You are a critical fact-checker. Given these documents and a query, extract ONLY the verified facts that directly answer the query.
+analyzer_verification_prompt = """Query: {query}
+                                Documents:
+                                {docs_text}
 
-Query: {query}
-Intent: {query_intent}
+                                Extract 2-3 verified facts that answer this query, be precise.
+                                If insufficient data, respond with: INSUFFICIENT_DATA"""
 
-Documents:
-{docs_text}
+answer_generator_prompt = """Query: {query}
+                            Query Type: {query_intent}
+                            Writing Style: {answer_style}
+                            Quality Score: {quality_score:.2f}
 
-Extract 2-3 specific, verified facts that answer the query. List them as bullet points.
-If documents don't contain enough information, say "INSUFFICIENT_DATA".
-Be critical - only include facts you're confident about."""
+                            Memory Context (use this to personalize):
+                            {memory_context}
 
-answer_generator_prompt = """You are a writer creating an answer for a user. You receive a query, its intent, a quality score, verified facts, and supporting context from documents.
+                            Verified Facts:
+                            {facts_text}
 
-Query: {query}
-Query Type: {query_intent}
-Writing Style: {answer_style}
-Quality Score: {quality_score:.2f}
+                            Write an answer (2-4 sentences) that:
+                            1. Answers the question directly
+                            2. Uses verified facts
+                            3. Considers the memory context about the user if relevant"""
 
-Verified Facts:
-{facts_text}
+summarize_prompt = """Summarize this conversation in 2-3 sentences. Focus on:
+                    1. Main topics discussed
+                    2. Key information provided
+                    3. User's apparent interests
 
-Supporting Context:
-{docs_context}
+                    Conversation:
+                    {history_text}
 
-Write a {answer_style} answer that:
-1. Directly answers the question
-2. Uses the verified facts
-3. Is 2-4 sentences long
-4. Is friendly and easy to understand
+                    Summary:"""
 
-When there is insufficient data to answer, respond with a sentence stating that.
-Answer:"""
+planner_prompt = """Use the ReAct pattern to plan how to answer this query.
+
+                    Query: "{query}"
+
+                    Memory Context:
+                    {memory_context}
+
+                    Provide your reasoning in this format:
+                    THOUGHT: What do I understand about this query? What's my goal?
+                    ACTION: What specific action should I take? (search_knowledge / use_memory / ask_clarification)
+                    PLAN: Step-by-step plan to answer this query
+
+                    Respond in this exact format."""
+
+extract_facts_prompt = """From this conversation, extract any facts about the user:
+                        User: {query}
+                        Assistant: {final_answer}
+
+                        If there are facts to learn, respond with: FACT: [fact] 
+                        And categorize the fact CATEGORY: [category]
+                        Otherwise respond with: NONE"""
