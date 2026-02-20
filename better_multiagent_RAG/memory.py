@@ -19,6 +19,10 @@ class MemoryManager:
 
         # long-term memory
         # stored in a JSON file per user
+        self.long_term_memory = {
+            "user_preferences": {},
+            "learned_facts": []
+        }
         self.user_file = os.path.join(self.memory_dir, f"{user_id}_data.json")
         self.load_long_term_memory()
 
@@ -27,18 +31,18 @@ class MemoryManager:
         if os.path.exists(self.user_file):
             with open(self.user_file, 'r') as f:
                 data = json.load(f)
-                self.user_preferences = data.get("user_preferences", {})
-                self.learned_facts = data.get("learned_facts", [])
+                self.long_term_memory["user_preferences"] = data.get("user_preferences", {})
+                self.long_term_memory["learned_facts"] = data.get("learned_facts", [])
         else:
-            self.user_preferences = {}
-            self.learned_facts = []
+            self.long_term_memory["user_preferences"] = {}
+            self.long_term_memory["learned_facts"] = []
 
     def save_long_term_memory(self):
         """Save long-term memory to file"""
         data = {
             "user_id": self.user_id,
-            "preferences": self.user_preferences,
-            "learned_facts": self.learned_facts,
+            "preferences": self.long_term_memory["user_preferences"],
+            "learned_facts": self.long_term_memory["learned_facts"],
             "last_updated": datetime.now().isoformat()# timestamp for tracking when memory was last updated
         }
         with open(self.user_file, 'w') as f:
@@ -83,7 +87,7 @@ class MemoryManager:
     
     def add_learned_fact(self, fact: str, category: str):
         """Add a new fact about user to long-term memory"""
-        self.learned_facts.append({
+        self.long_term_memory["learned_facts"].append({
             "fact": fact,
             "category": category,
             "timestamp": datetime.now().isoformat()
@@ -92,7 +96,7 @@ class MemoryManager:
 
     def update_user_preference(self, key: str, value: any):
         """Update a user preference in long-term memory"""
-        self.user_preferences[key] = value
+        self.long_term_memory["user_preferences"][key] = value
         self.save_long_term_memory()
 
     def get_context_for_query(self):
@@ -104,12 +108,12 @@ class MemoryManager:
             context_parts.append(f"Recent conversation: {self.short_term_memory['conversation_summary']}")
 
         #long-term context (user preferences and learned facts)
-        if self.user_preferences:
-            prefs = ", ".join([f"{k}: {v}" for k, v in self.user_preferences.items()])
+        if self.long_term_memory["user_preferences"]:
+            prefs = ", ".join([f"{k}: {v}" for k, v in self.long_term_memory["user_preferences"].items()])
             context_parts.append(f"User preferences:\n{prefs}")
 
-        if self.learned_facts:
-            facts = [f['fact'] for f in self.learned_facts[-5:]] # get last 5 learned facts
+        if self.long_term_memory["learned_facts"]:
+            facts = [f['fact'] for f in self.long_term_memory["learned_facts"][-5:]] # get last 5 learned facts
             context_parts.append(f"Learned facts about user:\n{facts}")
 
         return "\n\n".join(context_parts)

@@ -355,12 +355,12 @@ class MultiAgentRAG:
                     pass
         state["conversation_history"] = self.memory.short_term_memory["conversation_history"]
         state["conversation_summary"] = self.memory.short_term_memory["conversation_summary"]
-        state["user_preferences"] = self.memory.user_preferences
-        state["learned_facts"] = self.memory.learned_facts
-        
+        state["user_preferences"] = self.memory.long_term_memory["user_preferences"]
+        state["learned_facts"] = self.memory.long_term_memory["learned_facts"]
+
         state["agent_logs"].append(
             f"Memory: Updated short-term ({len(self.memory.short_term_memory['conversation_history'])} messages) "
-            f"and long-term ({len(self.memory.learned_facts)} facts)"
+            f"and long-term ({len(self.memory.long_term_memory['learned_facts'])} facts)"
         )
 
         return state
@@ -377,8 +377,8 @@ class MultiAgentRAG:
         "final_answer": "",
         "conversation_history": self.memory.short_term_memory["conversation_history"],
         "conversation_summary": self.memory.short_term_memory["conversation_summary"],
-        "user_preferences": self.memory.user_preferences,
-        "learned_facts": self.memory.learned_facts,
+        "user_preferences": self.memory.long_term_memory["user_preferences"],
+        "learned_facts": self.memory.long_term_memory["learned_facts"],
         "reasoning_steps": [],
         "actions_taken": [],
         "should_continue": True
@@ -418,4 +418,4 @@ if __name__ == "__main__":
         print("MEMORY STATE")
         print(f"Conversation history: {len(rag.memory.short_term_memory['conversation_history'])} messages")
         print(f"Summary: {rag.memory.short_term_memory['conversation_summary']}")
-        print(f"Learned facts: {len(rag.memory.learned_facts)}")
+        print(f"Learned facts: {len(rag.memory.long_term_memory['learned_facts'])}")

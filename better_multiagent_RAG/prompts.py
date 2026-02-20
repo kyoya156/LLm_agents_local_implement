@@ -35,6 +35,11 @@ answer_generator_prompt = """Query: {query}
                             Verified Facts:
                             {facts_text}
 
+                            IMPORTANT: Only use information explicitly stated in the verified facts above.
+                            Do not infer, calculate, or assume any information not directly provided.
+                            If the user shares personal details, acknowledge them warmly but do not use them to make calculations.
+                            ...
+
                             Write an answer (2-4 sentences) that:
                             1. Answers the question directly
                             2. Uses verified facts

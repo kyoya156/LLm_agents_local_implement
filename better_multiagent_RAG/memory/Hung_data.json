@@ -1,0 +1,12 @@
+{
+    "user_id": "Hung",
+    "preferences": {},
+    "learned_facts": [
+        {
+            "fact": "User's cat was adopted as a kitten 2 years ago. CATEGORY: Personal Experience\n* The user would like to know how long their cat can live.",
+            "category": "Personal Experience\n* The user would like to know how long their cat can live. FACT: None (this is a desire or question, not a fact about the user).",
+            "timestamp": "2026-02-20T10:21:47.989055"
+        }
+    ],
+    "last_updated": "2026-02-20T10:21:47.989055"
+}
