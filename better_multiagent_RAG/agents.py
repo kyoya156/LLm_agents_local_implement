@@ -34,9 +34,9 @@ class AgentState(TypedDict):
 
 class MultiAgentRAG:
     """Multi-Agent RAG System with Retriever, Analyzer, and Answer Generator."""
+    llm_model = 'llama3' # class variable for LLM model name
     def __init__(self, vector_db: VectorDBManager, user_id: str = "default_user"):
         self.vector_db = vector_db
-        self.llm_model = 'llama3' # Using a local LLM model i downloaded with Ollama for all agents
         self.memory = MemoryManager(user_id)
 
         # Define agents
@@ -82,7 +82,7 @@ class MultiAgentRAG:
         planner_prompt = prompts.planner_prompt.format(query=query, memory_context=memory_context)
 
         response = ollama.chat(
-            model=self.llm_model,
+            model=MultiAgentRAG.llm_model,
             messages=[{"role": "user", "content": "You are a strategic planner. Think step-by-step to answer this query."},
                       {"role": "user", "content": planner_prompt}],
             stream=False
@@ -112,6 +112,7 @@ class MultiAgentRAG:
 
         state["agent_logs"] = state.get("agent_logs", [])
         state["agent_logs"].append(f"Planner decided to {action}.")
+        return state
 
     def retriever(self, state: AgentState) -> AgentState:
         """Retriever: Retrieves relevant documents from the vector DB.
@@ -127,7 +128,7 @@ class MultiAgentRAG:
         thought_prompt = prompts.retriever_thought_prompt.format(query=query, memory_context=memory_context)
 
         thought_response = ollama.chat(
-            model=self.llm_model,
+            model=MultiAgentRAG.llm_model,
             messages=[{"role": "user", "content": thought_prompt}],
             stream=False
         )
@@ -138,7 +139,7 @@ class MultiAgentRAG:
         intent_prompt = prompts.retriever_intent_prompt.format(query=query)
 
         intent_response = ollama.chat(
-            model=self.llm_model,
+            model=MultiAgentRAG.llm_model,
             messages=[{"role": "user", "content": intent_prompt}],
             stream=False
         )
@@ -182,7 +183,8 @@ class MultiAgentRAG:
         # quality analysis
         # calculate weighted score and average similarity
         # then combine them into a final quality score between 0 and 1
-        if total_docs := len(retrieved_docs) > 0:
+        total_docs = len(retrieved_docs)
+        if total_docs > 0:
             weighted_score = sum((1 if doc["relevance"] == "HIGH" else 0.6 if doc["relevance"] == "MEDIUM" else 0.3) for doc in retrieved_docs) / total_docs
             avg_similarity = sum(doc["similarity"] for doc in retrieved_docs) / total_docs
 
@@ -206,7 +208,7 @@ class MultiAgentRAG:
         )
         
         analysis_response = ollama.chat(
-            model=self.llm_model,
+            model=MultiAgentRAG.llm_model,
             messages=[{"role": "user", "content": analysis_prompt}],
             stream=False
         )
@@ -298,7 +300,7 @@ class MultiAgentRAG:
         )
 
         response = ollama.chat(
-            model=self.llm_model,
+            model=MultiAgentRAG.llm_model,
             messages=[{"role": "user", "content": writing_prompt}],
             stream=False
         )
@@ -324,7 +326,7 @@ class MultiAgentRAG:
         if len(self.memory.short_term_memory["conversation_history"]) % 6 == 0:
             summary = self.memory.summarize_conversation()
 
-        #update long-term memory with any new facts learned about the user
+        # update long-term memory with any new facts learned about the user
         # added some words to catch more preference-related queries as the ollama 3 model might not be that good at classifying intent
         if query_intent == "PERSONAL" or "i like" in query.lower() or "my preference" in query.lower():
             self.memory.add_learned_fact(fact=query, category="preference")
@@ -335,7 +337,7 @@ class MultiAgentRAG:
         )
 
         respond = ollama.chat(
-            model=self.llm_model,
+            model=MultiAgentRAG.llm_model,
             messages=[{"role": "user", "content": extract_facts_prompt}],
             stream=False
         )
@@ -400,7 +402,7 @@ if __name__ == "__main__":
         
         # Test conversation with memory
 
-        print("Testing Memory and ReAct Pattern")
+        print("Testing Memory and ReAct ")
 
         
         # First query
@@ -413,7 +415,7 @@ if __name__ == "__main__":
         
         # Show memory
 
-        print("💾 MEMORY STATE")
+        print("MEMORY STATE")
         print(f"Conversation history: {len(rag.memory.short_term_memory['conversation_history'])} messages")
         print(f"Summary: {rag.memory.short_term_memory['conversation_summary']}")
         print(f"Learned facts: {len(rag.memory.learned_facts)}")
