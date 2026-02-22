@@ -1,4 +1,4 @@
-import ollama, prompts, json, os
+import ollama, json, os
 from datetime import datetime
 import prompts
 

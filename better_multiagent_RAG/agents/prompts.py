@@ -1,4 +1,4 @@
-retriever_thought_prompt = """Query: {query}
+retriever_decision_prompt = """Query: {query}
                             Memory Context: {memory_context}
 
                             THOUGHT: Can this be answered from memory, or do I need to search the knowledge base?
@@ -7,15 +7,17 @@ retriever_thought_prompt = """Query: {query}
 retriever_intent_prompt = """Analyze this query and classify its intent in one word:
                             Query: "{query}"
 
-                            Is this asking for:
-                            - DEFINITION (what is X?)
-                            - EXPLANATION (how/why does X work?)
-                            - COMPARISON (difference between X and Y?)
-                            - FACT (specific factual information?)
-                            - LIST (give me examples/types of X?)
-                            - PERSONAL (asking about user preferences or past interactions?)
-
                             Respond with just ONE word: DEFINITION, EXPLANATION, COMPARISON, FACT, LIST OR PERSONAL."""
+
+
+#                            Is this asking for:
+#                            - DEFINITION (what is X?)
+#                            - EXPLANATION (how/why does X work?)
+#                            - COMPARISON (difference between X and Y?)
+#                            - FACT (specific factual information?)
+#                            - LIST (give me examples/types of X?)
+#                            - PERSONAL (asking about user preferences or past interactions?)
+
 
 analyzer_verification_prompt = """Query: {query}
                                 Documents:

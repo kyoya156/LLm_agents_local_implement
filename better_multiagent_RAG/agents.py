@@ -5,7 +5,7 @@ This time adds memory and reaction capabilities.
 """
 from typing import TypedDict, List, Dict, Optional
 from langgraph.graph import StateGraph, END
-import ollama, prompts, json, os
+import ollama, test.better_multiagent_RAG.agents.prompts as prompts, json, os
 from vector_db import VectorDBManager
 from datetime import datetime
 from memory import MemoryManager
@@ -125,11 +125,11 @@ class MultiAgentRAG:
 
         #Thought: Should the retriever use memory or search the vector database?
 
-        thought_prompt = prompts.retriever_thought_prompt.format(query=query, memory_context=memory_context)
+        decision_prompt = prompts.retriever_decision_prompt.format(query=query, memory_context=memory_context)
 
         thought_response = ollama.chat(
             model=MultiAgentRAG.llm_model,
-            messages=[{"role": "user", "content": thought_prompt}],
+            messages=[{"role": "user", "content": decision_prompt}],
             stream=False
         )
 
