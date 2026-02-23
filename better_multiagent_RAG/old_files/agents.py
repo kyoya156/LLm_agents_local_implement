@@ -5,7 +5,7 @@ This time adds memory and reaction capabilities.
 """
 from typing import TypedDict, List, Dict, Optional
 from langgraph.graph import StateGraph, END
-import ollama, test.better_multiagent_RAG.agents.prompts as prompts, json, os
+import ollama, json, os
 from vector_db import VectorDBManager
 from datetime import datetime
 from memory import MemoryManager

@@ -2,7 +2,7 @@
 Interactive CLI for Multi-Agent RAG System
 """
 from vector_db import VectorDBManager
-from agents import MultiAgentRAG
+from main import MultiAgentRAG
 import sys
 
 
@@ -107,7 +107,7 @@ def print_result(result: dict, show_details: bool = True):
         print(" AGENT WORKFLOW:")
         print("\n")
         for log in result['agent_logs']:
-            print(f"  ✓ {log}")
+            print(f"   {log}")
     
 
 
@@ -128,12 +128,12 @@ def main():
         user_id = "default_user"
     
     rag = MultiAgentRAG(db, user_id=user_id)
-    print(f"✓ System ready! (User: {user_id})")
-    print(f"✓ Database: {db.get_collection_count()} documents")
+    print(f" System ready! (User: {user_id})")
+    print(f" Database: {db.get_collection_count()} documents")
     
     # Check if user has existing memory
     if rag.memory.long_term_memory['learned_facts'] or rag.memory.long_term_memory['user_preferences']:
-        print(f"✓ Loaded your memory: {len(rag.memory.long_term_memory['learned_facts'])} facts, {len(rag.memory.long_term_memory['user_preferences'])} preferences")
+        print(f" Loaded your memory: {len(rag.memory.long_term_memory['learned_facts'])} facts, {len(rag.memory.long_term_memory['user_preferences'])} preferences")
 
     print_header()
     

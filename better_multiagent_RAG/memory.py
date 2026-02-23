@@ -1,6 +1,7 @@
 import ollama, json, os
 from datetime import datetime
-import prompts
+from typing import List, Dict
+from agents import prompts
 
 
 class MemoryManager:
@@ -9,6 +10,7 @@ class MemoryManager:
         self.user_id = user_id
         self.memory_dir = "./memory"
         os.makedirs(self.memory_dir, exist_ok=True)
+        self.summarize_agent = "ollama3"
 
         # short-term memory (in-memory, reset each session)
         # tried using dict with specific keys 
@@ -19,11 +21,11 @@ class MemoryManager:
 
         # long-term memory
         # stored in a JSON file per user
+        self.user_file = os.path.join(self.memory_dir, f"{user_id}.json")
         self.long_term_memory = {
             "user_preferences": {},
             "learned_facts": []
         }
-        self.user_file = os.path.join(self.memory_dir, f"{user_id}_data.json")
         self.load_long_term_memory()
 
     def load_long_term_memory(self):
@@ -34,6 +36,7 @@ class MemoryManager:
                 self.long_term_memory["user_preferences"] = data.get("user_preferences", {})
                 self.long_term_memory["learned_facts"] = data.get("learned_facts", [])
         else:
+            print("Could not load memory file, starting with empty long-term memory.")
             self.long_term_memory["user_preferences"] = {}
             self.long_term_memory["learned_facts"] = []
 
@@ -45,8 +48,11 @@ class MemoryManager:
             "learned_facts": self.long_term_memory["learned_facts"],
             "last_updated": datetime.now().isoformat()# timestamp for tracking when memory was last updated
         }
-        with open(self.user_file, 'w') as f:
-            json.dump(data, f, indent=4)
+        try:
+            with open(self.user_file, 'w') as f:
+                json.dump(data, f, indent=4)
+        except Exception as e:
+            print(f"Error saving long-term memory: {e}")
 
     def add_to_short_term(self, role: str, content: str):
         """Add an entry to short-term memory"""
@@ -58,8 +64,8 @@ class MemoryManager:
             }
         )
 
-        if len(self.short_term_memory["conversation_history"]) > 10: # keep only last 10 interactions
-            self.short_term_memory["conversation_history"].pop(0) # remove oldest entry
+        if len(self.short_term_memory["conversation_history"]) > 10:
+            self.short_term_memory["conversation_history"] = self.short_term_memory["conversation_history"][-10:]
 
     def summarize_conversation(self):
         """ summaize conversation for short-term memory """
@@ -74,9 +80,8 @@ class MemoryManager:
 
         summary_prompt = prompts.summarize_prompt.format(history_text=history_text)
 
-        from agents import  MultiAgentRAG
         response = ollama.chat(
-            model= MultiAgentRAG.llm_model,
+            model= self.summarize_agent,
             messages=[{"role": "system", "content": "You are a helpful assistant that summarizes conversations."},
                       {"role": "user", "content": summary_prompt}],
             stream=False
@@ -117,3 +122,18 @@ class MemoryManager:
             context_parts.append(f"Learned facts about user:\n{facts}")
 
         return "\n\n".join(context_parts)
+    
+    def clear_short_term(self):
+        """Clear short-term memory"""
+        self.short_term_memory["conversation_history"] = []
+        self.short_term_memory["conversation_summary"] = ""
+
+    def get_stats(self) -> Dict:
+        """Get memory statistics"""
+        return {
+            'user_id': self.user_id,
+            'short_term_messages': len(self.short_term_memory["conversation_history"]),
+            'has_summary': bool(self.short_term_memory["conversation_summary"]),
+            'preferences_count': len(self.long_term_memory["user_preferences"]),
+            'learned_facts_count': len(self.long_term_memory["learned_facts"])
+        }
