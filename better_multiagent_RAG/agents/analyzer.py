@@ -1,6 +1,6 @@
 from typing import Any, Dict, List
 from .base_agent import BaseAgent
-import prompts
+from . import prompts
 
 class AnalyzerAgent(BaseAgent):
     """Agent responsible for analyzing retrieved information and formulating a response."""
@@ -30,7 +30,7 @@ class AnalyzerAgent(BaseAgent):
             {"role": "user", "content": verification_prompt}
         ])
 
-        verified_contents = response['messages']['content']
+        verified_contents = response['message']['content']
 
         #parse the verified facts
         if "INSUFFICIENT_DATA" in verified_contents.upper():

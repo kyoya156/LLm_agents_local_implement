@@ -1,7 +1,7 @@
 from typing import Any, Dict, List
 from .base_agent import BaseAgent
 from memory import MemoryManager
-import prompts
+from . import prompts
 
 
 class AnswerGeneratorAgent(BaseAgent):
@@ -92,13 +92,13 @@ class AnswerGeneratorAgent(BaseAgent):
                 memory_context=memory_context
             )
 
-        state["generated_answer"] = final_answer
+        state["final_answer"] = final_answer
         state["agent_logs"].append(
             f"Writer: Generated {writing_style} answer "
             f"({len(final_answer)} chars, {confidence} confidence)"
         )
         state["reasoning_steps"].append(
-            "OBSERVATION: Answer generated successfully"
+            f"THOUGHT: Using {writing_style} style with {confidence} confidence"
         )
         self.log("Generated answer:")
         return state

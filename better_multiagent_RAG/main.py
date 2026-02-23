@@ -1,7 +1,6 @@
 from typing import Dict
 from langgraph.graph import StateGraph, END
 from typing_extensions import TypedDict
-
 from vector_db import VectorDBManager
 from memory import MemoryManager
 from agents import (
@@ -46,12 +45,12 @@ class MultiAgentRAG:
     def __init__(self, vector_db: VectorDBManager, user_id: str = "default_user"):
         self.vector_db = vector_db
         # LLM model to use for all agents as this is a test implementation
-        self.llm_model = "ollama3" 
+        self.llm_model = "llama3" 
         self.memory = MemoryManager(user_id)
 
         # Initialize agents
         self.planner = PlannerAgent(self.llm_model, self.memory)
-        self.retriever = RetrieverAgent(self.llm_model, self.vector_db, self.memory)
+        self.retriever = RetrieverAgent(self.llm_model, self.memory, self.vector_db)
         self.analyzer = AnalyzerAgent(self.llm_model)
         self.answer_generator = AnswerGeneratorAgent(self.llm_model, self.memory)
         self.memory_agent = MemoryAgent(self.llm_model, self.memory)

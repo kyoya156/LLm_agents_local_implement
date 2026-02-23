@@ -28,7 +28,7 @@ analyzer_verification_prompt = """Query: {query}
 
 answer_generator_prompt = """Query: {query}
                             Query Type: {query_intent}
-                            Writing Style: {answer_style}
+                            Writing Style: {writing_style}
                             Quality Score: {quality_score:.2f}
 
                             Memory Context (use this to personalize):

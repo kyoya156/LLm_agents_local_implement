@@ -1,7 +1,7 @@
 from typing import Any, Dict, List
 from .base_agent import BaseAgent
 from memory import MemoryManager
-import prompts
+from . import prompts
 
 class MemoryAgent(BaseAgent):
     """Agent responsible for managing memory and context."""
@@ -47,7 +47,7 @@ class MemoryAgent(BaseAgent):
                 "category": category_part
             }
         except (IndexError, AttributeError):
-            self.log("Failed to parse fact extraction response:", extraction)
+            self.log(f"Failed to parse fact extraction response: {extraction}")
             return None
 
     def process(self, state: Dict) -> Dict:
@@ -63,10 +63,10 @@ class MemoryAgent(BaseAgent):
         message_count = len(self.memory.short_term_memory)
         self.log(f"MemoryAgent Current message count: {message_count}")
 
-        if message_count % 6 and  message_count > 0:  # Every 6 messages, attempt to extract facts
+        if message_count % 6 == 0 and  message_count > 0:  # Every 6 messages, attempt to extract facts
             self.log("Summarizing conversations for short-term memory...")
             summary = self.memory.summarize_conversation()
-            self.log("Summary:", summary)
+            self.log(f"Summary: {summary}")
         
         should_extract = self.should_extract_personal_info(query, query_intent)
         self.log(f"Should extract personal info: {should_extract}")
@@ -86,22 +86,22 @@ class MemoryAgent(BaseAgent):
                 self.log("No learnable facts extracted from this interaction.")
 
         # Update state with memory info
-        state["conversation_history"] = self.memory.conversation_history
-        state["conversation_summary"] = self.memory.conversation_summary
-        state["user_preferences"] = self.memory.user_preferences
-        state["learned_facts"] = self.memory.learned_facts
+        state["conversation_history"] = self.memory.short_term_memory["conversation_history"]
+        state["conversation_summary"] = self.memory.short_term_memory["conversation_summary"]
+        state["user_preferences"] = self.memory.long_term_memory["user_preferences"]
+        state["learned_facts"] = self.memory.long_term_memory["learned_facts"]
 
         # Update agent logs
         state["agent_logs"].append(
             f"Memory: Updated short-term ({message_count} messages) "
-            f"and long-term ({len(self.memory.learned_facts)} total facts, "
+            f"and long-term ({len(self.memory.long_term_memory['learned_facts'])} total facts, "
             f"+{facts_learned} new)"
         )
         
         # Add to reasoning trace
         state["reasoning_steps"].append(
             f"OBSERVATION: Memory updated - {message_count} messages in history, "
-            f"{len(self.memory.learned_facts)} facts learned"
+            f"{len(self.memory.long_term_memory['learned_facts'])} facts learned"
         )
 
         self.log(f"Memory update complete")

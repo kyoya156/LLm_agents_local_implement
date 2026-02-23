@@ -5,7 +5,7 @@ from typing import Any, Dict
 import ollama
 class BaseAgent:
     """Base class for all agents."""
-    def __init__(self, llm_model: str = "ollama3"):
+    def __init__(self, llm_model: str = "llama3"):
         self.llm_model = llm_model
         self.agent_name = self.__class__.__name__
 

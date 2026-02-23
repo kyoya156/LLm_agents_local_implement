@@ -1,7 +1,7 @@
 from typing import Dict
 from .base_agent import BaseAgent
 from memory import MemoryManager
-import prompts
+from . import prompts
 
 class RetrieverAgent(BaseAgent):
     """Agent responsible for retrieving information from memory."""
@@ -27,16 +27,15 @@ class RetrieverAgent(BaseAgent):
             {"role": "system", "content": "You are an intent classifier."},
             {"role": "user", "content": intent_prompt}
         ])
-        intent = response['messages']['content'].strip().upper()
+        intent = response['message']['content'].strip().upper()
         if intent in self.search_strategies:
             return intent
         else:
             print(f"Warning: Unrecognized intent '{intent}' classified. Defaulting to FACT.")
             return "FACT"  # Default to FACT if unclear
-    
-    def should_use_memory(self, query: str) -> bool:
+
+    def should_use_memory(self, query: str, memory_context: str) -> bool:
         """Determine if the query can be answered from memory alone or if a knowledge search is needed."""
-        memory_context = self.memory.get_context_for_query(query)
         if memory_context == "No prior context.":
             return False
         
@@ -46,7 +45,7 @@ class RetrieverAgent(BaseAgent):
             {"role": "user", "content": decision_prompt}
         ])
 
-        return response['messages']['content'].strip().lower() == "use_memory"
+        return response['message']['content'].strip().lower() == "use_memory"
 
     def document_relevance(self, similarity: float) -> str:
         """Assign relevance level based on similarity score"""
@@ -62,7 +61,7 @@ class RetrieverAgent(BaseAgent):
         query = state["query"]
 
         # Get memory context
-        memory_context = self.memory.get_context_for_query(query)
+        memory_context = self.memory.get_context_for_query()
 
         # classify intent 
         query_intent = self.classify_intent(query)
@@ -93,6 +92,12 @@ class RetrieverAgent(BaseAgent):
 
             self.log(f"Doc {i+1}: Similarity={similarity:.4f} | Relevance={relevance}")
 
+        state["retrieved_docs"] = retrieved_docs
+        state["agent_logs"].append(
+            f"Researcher: Found {len(retrieved_docs)} docs "
+            f"(Intent: {query_intent}, Memory used: {use_memory})"
+        )
+        
         # record 
         high_relevance_count = sum(1 for doc in retrieved_docs if doc['relevance'] == 'HIGH')
         state["reasoning_steps"].append(

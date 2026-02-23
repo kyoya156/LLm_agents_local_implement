@@ -1,7 +1,7 @@
 from typing import Dict
 from .base_agent import BaseAgent
 from memory import MemoryManager
-import prompts
+from . import prompts
 
 class PlannerAgent(BaseAgent):
     """Agent responsible for planning the reasoning process """

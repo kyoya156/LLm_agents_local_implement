@@ -1,7 +1,7 @@
 import ollama, json, os
 from datetime import datetime
 from typing import List, Dict
-from agents import prompts
+
 
 
 class MemoryManager:
@@ -10,7 +10,7 @@ class MemoryManager:
         self.user_id = user_id
         self.memory_dir = "./memory"
         os.makedirs(self.memory_dir, exist_ok=True)
-        self.summarize_agent = "ollama3"
+        self.summarize_agent = "llama3"
 
         # short-term memory (in-memory, reset each session)
         # tried using dict with specific keys 
@@ -77,7 +77,7 @@ class MemoryManager:
             f"{msg['role']}: {msg['content']}" 
             for msg in recent_conversation
         ])
-
+        from agents import prompts
         summary_prompt = prompts.summarize_prompt.format(history_text=history_text)
 
         response = ollama.chat(
