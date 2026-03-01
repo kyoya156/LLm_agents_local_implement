@@ -1,0 +1,43 @@
+THREAT INTELLIGENCE REPORT — SSH Brute Force Campaigns
+
+OVERVIEW
+SSH brute force attacks remain one of the most common initial access techniques observed in the wild. Threat actors systematically attempt to guess credentials for SSH services exposed on port 22.
+
+INDICATORS OF COMPROMISE
+- Repeated failed authentication attempts from a single IP address (typically >10 in under 60 seconds)
+- Attempts against common usernames: root, admin, ubuntu, deploy, pi, test, user
+- Source IPs frequently originate from VPS providers, TOR exit nodes, or botnet infrastructure
+
+ATTACK PROGRESSION
+Once initial access is established via SSH, attackers typically follow this progression:
+1. Privilege escalation via sudo abuse or SUID binary exploitation
+2. Persistence via crontab modification, new user creation, or SSH key injection
+3. Lateral movement to other internal hosts using harvested credentials
+4. Defense evasion including clearing auth.log and disabling firewall rules
+5. Data exfiltration of sensitive files over encrypted channels
+
+DETECTION GUIDANCE
+- Monitor /var/log/auth.log for failed password entries
+- Alert on >5 failed attempts from the same IP within 60 seconds
+- Alert immediately on any successful login following repeated failures
+- Monitor for new user creation (useradd/adduser) especially with UID 0
+- Watch for crontab modifications by non-root users
+- Monitor outbound traffic volume for unusual spikes
+
+MITRE ATT&CK MAPPING
+T1110 — Brute Force (Initial Access / Credential Access)
+T1548 — Abuse Elevation Control Mechanism (Privilege Escalation)
+T1053 — Scheduled Task/Job (Persistence)
+T1136 — Create Account (Persistence)
+T1562 — Impair Defenses (Defense Evasion)
+T1070 — Indicator Removal (Defense Evasion)
+T1021 — Remote Services (Lateral Movement)
+T1041 — Exfiltration Over C2 Channel (Exfiltration)
+
+RECOMMENDED MITIGATIONS
+- Disable password authentication; enforce SSH key-based login only
+- Implement fail2ban or similar intrusion prevention
+- Restrict SSH access to known IP ranges via firewall rules
+- Enable multi-factor authentication where possible
+- Regularly audit user accounts and crontab entries
+- Centralise log collection to a SIEM to prevent local log tampering

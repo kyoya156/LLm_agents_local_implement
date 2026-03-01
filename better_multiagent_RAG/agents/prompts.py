@@ -1,80 +1,133 @@
-retriever_decision_prompt = """Query: {query}
-                            Memory Context: {memory_context}
+"""
+Cybersecurity-adapted prompts for all agents.
+"""
 
-                            THOUGHT: Can this be answered from memory, or do I need to search the knowledge base?
-                            Respond with just: use_memory or search_knowledge"""
+# ---------------------------------------------------------------------------
+# Planner
+# ---------------------------------------------------------------------------
+planner_prompt = """You are a senior SOC analyst using the ReAct framework. Analyze this security query.
 
-retriever_intent_prompt = """Analyze this query and classify its intent in one word:
+                    Query: "{query}"
+
+                    Prior Incident Context:
+                    {memory_context}
+
+                    THOUGHT: What type of security event or question is this? What do I already know from context?
+                    ACTION: Choose ONE — log_analysis / threat_intel_lookup / incident_response / anomaly_detection / general_query
+                    SEVERITY: Choose ONE — CRITICAL / HIGH / MEDIUM / LOW / UNKNOWN
+                    PLAN: Write 3-5 numbered steps to investigate this query
+
+                    Respond in this EXACT format (no extra text):
+                    THOUGHT: <your reasoning>
+                    ACTION: <one action keyword>
+                    SEVERITY: <one severity keyword>
+                    PLAN: <numbered steps>"""
+
+
+# ---------------------------------------------------------------------------
+# Retriever
+# ---------------------------------------------------------------------------
+retriever_intent_prompt = """You are a cybersecurity query classifier.
+
                             Query: "{query}"
 
-                            Respond with just ONE word: DEFINITION, EXPLANATION, COMPARISON, FACT, LIST OR PERSONAL."""
+                            Classify the query intent as ONE of:
+                            - LOG_ANALYSIS     (user provides or asks about log entries)
+                            - THREAT_INTEL     (asking about known attack techniques, malware, CVEs)
+                            - INCIDENT_RESPONSE (asking what to do about an attack)
+                            - ANOMALY_DETECTION (asking if something is suspicious or normal)
+                            - GENERAL          (general cybersecurity question)
+
+                            Respond with just ONE phrase from the list above."""
+
+retriever_decision_prompt = """Query: {query}
+                                Prior Incident Context: {memory_context}
+
+                                Can this query be fully answered from the prior context, or do we need to search for new information?
+                                Respond with just: use_memory OR search_knowledge"""
 
 
-#                            Is this asking for:
-#                            - DEFINITION (what is X?)
-#                            - EXPLANATION (how/why does X work?)
-#                            - COMPARISON (difference between X and Y?)
-#                            - FACT (specific factual information?)
-#                            - LIST (give me examples/types of X?)
-#                            - PERSONAL (asking about user preferences or past interactions?)
+# ---------------------------------------------------------------------------
+# Analyzer
+# ---------------------------------------------------------------------------
+analyzer_verification_prompt = """You are a threat analyst. Review the following evidence carefully.
 
+                                Original Query / Alert: {query}
 
-analyzer_verification_prompt = """Query: {query}
-                                Documents:
+                                Retrieved Evidence (logs + CTI):
                                 {docs_text}
 
-                                Extract 2-3 verified facts that answer this query, be precise.
-                                If insufficient data, respond with: INSUFFICIENT_DATA"""
+                                Your tasks:
+                                1. List 2-5 concrete facts that are DIRECTLY supported by the evidence above.
+                                2. If the evidence is insufficient, respond with: INSUFFICIENT_DATA
 
-answer_generator_prompt = """Query: {query}
+                                Format each fact as a bullet starting with '-'.
+                                Do NOT infer or assume information not present in the evidence."""
+
+analyzer_mitre_prompt = """You are a cybersecurity expert. Given these detected attack flags and MITRE ATT&CK data:
+
+                                Detected Flags: {flags}
+                                MITRE Mapping: {mitre_summary}
+
+                                Summarize in 2-3 sentences:
+                                1. What attack stage this likely represents
+                                2. What the attacker's probable goal is
+                                3. The single most important defensive action to take right now"""
+
+
+# ---------------------------------------------------------------------------
+# Answer Generator
+# ---------------------------------------------------------------------------
+answer_generator_prompt = """You are a professional cybersecurity analyst writing an incident report.
+
+                            Original Query: {query}
                             Query Type: {query_intent}
-                            Writing Style: {writing_style}
-                            Quality Score: {quality_score:.2f}
+                            Overall Severity: {severity}
+                            Quality of Evidence: {quality_score:.2f}/1.00
 
-                            Memory Context (use this to personalize):
+                            Prior Incident Context (for continuity):
                             {memory_context}
 
                             Verified Facts:
                             {facts_text}
 
-                            IMPORTANT: Only use information explicitly stated in the verified facts above.
-                            Do not infer, calculate, or assume any information not directly provided.
-                            If the user shares personal details, acknowledge them warmly but do not use them to make calculations.
-                            ...
+                            MITRE ATT&CK Assessment:
+                            {mitre_assessment}
 
-                            Write an answer (2-4 sentences) that:
-                            1. Answers the question directly
-                            2. Uses verified facts
-                            3. Considers the memory context about the user if relevant"""
+                            Write a structured incident report with these sections:
+                            1. SUMMARY (1-2 sentences)
+                            2. THREAT ASSESSMENT (what is happening and severity)
+                            3. MITRE ATT&CK CONTEXT (techniques identified and predicted next phases)
+                            4. RECOMMENDED ACTIONS (3-5 bullet points, most urgent first)
 
-summarize_prompt = """Summarize this conversation in 2-3 sentences. Focus on:
-                    1. Main topics discussed
-                    2. Key information provided
-                    3. User's apparent interests
+                            IMPORTANT: Only use information from the verified facts and MITRE assessment above.
+                            Do not invent IP addresses, usernames, or technical details not present in the evidence."""
 
-                    Conversation:
-                    {history_text}
 
-                    Summary:"""
+# ---------------------------------------------------------------------------
+# Memory Agent
+# ---------------------------------------------------------------------------
+extract_incident_facts_prompt = """From this security interaction, extract key incident facts to remember:
 
-planner_prompt = """Use the ReAct pattern to plan how to answer this query.
+                                Analyst Query: {query}
+                                System Response: {final_answer}
 
-                    Query: "{query}"
+                                Extract facts in this format (or respond NONE if nothing noteworthy):
+                                FACT: <concise fact about the incident, attacker, or system>
+                                CATEGORY: <one of: attacker_ip / affected_user / attack_technique / timeline / system / recommendation>"""
 
-                    Memory Context:
-                    {memory_context}
+summarize_prompt = """Summarize this security incident conversation in 2-3 sentences. Focus on:
+                        1. What threats or anomalies were discussed
+                        2. Key systems or users affected
+                        3. Actions recommended or taken
 
-                    Provide your reasoning in this format:
-                    THOUGHT: What do I understand about this query? What's my goal?
-                    ACTION: What specific action should I take? (search_knowledge / use_memory / ask_clarification)
-                    PLAN: Step-by-step plan to answer this query
+                        Conversation:
+                        {history_text}
 
-                    Respond in this exact format."""
+                        Summary:"""
 
-extract_facts_prompt = """From this conversation, extract any facts about the user:
-                        User: {query}
-                        Assistant: {final_answer}
 
-                        If there are facts to learn, respond with: FACT: [fact] 
-                        And categorize the fact CATEGORY: [category]
-                        Otherwise respond with: NONE"""
+# ---------------------------------------------------------------------------
+# Planner (kept for backwards compat alias)
+# ---------------------------------------------------------------------------
+planner_prompt_v1 = planner_prompt

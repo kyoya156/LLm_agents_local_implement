@@ -1,9 +1,6 @@
 """
-Agents Package
-Contains all agents for the multi-agent RAG 
-And also the prompts used by the agents, which are stored in a separate module for better organization and maintainability.
+Agents Package — Cybersecurity Multi-Agent RAG
 """
-
 from .base_agent import BaseAgent
 from .planner import PlannerAgent
 from .retriever import RetrieverAgent
@@ -13,11 +10,11 @@ from .memory_agent import MemoryAgent
 from . import prompts
 
 __all__ = [
-    'BaseAgent',
-    'PlannerAgent',
-    'RetrieverAgent',
-    'AnalyzerAgent',
-    'AnswerGeneratorAgent',
-    'MemoryAgent',
-    'prompts'
+    "BaseAgent",
+    "PlannerAgent",
+    "RetrieverAgent",
+    "AnalyzerAgent",
+    "AnswerGeneratorAgent",
+    "MemoryAgent",
+    "prompts",
 ]

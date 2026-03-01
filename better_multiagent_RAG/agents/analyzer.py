@@ -1,94 +1,161 @@
-from typing import Any, Dict, List
+from typing import Dict, List, Optional
 from .base_agent import BaseAgent
 from . import prompts
 
+
 class AnalyzerAgent(BaseAgent):
-    """Agent responsible for analyzing retrieved information and formulating a response."""
-    def __init__(self, llm_model: str):
+    """
+    Analyzes retrieved evidence, verifies facts, calculates quality,
+    and produces a MITRE ATT&CK assessment.
+    """
+
+    def __init__(self, llm_model: str, mitre_kb=None):
         super().__init__(llm_model)
+        self.mitre_kb = mitre_kb   # MitreKnowledgeBase instance 
+
+    # ------------------------------------------------------------------
+    # Quality scoring
+    # ------------------------------------------------------------------
 
     def calculate_quality_score(self, retrieved_docs: List[Dict]) -> float:
-        """Calculate a quality score based on relevance"""
         if not retrieved_docs:
             return 0.0
+        weight_map = {"HIGH": 1.0, "MEDIUM": 0.6, "LOW": 0.3}
+        weighted = sum(weight_map.get(d["relevance"], 0.3) for d in retrieved_docs)
+        avg_sim = sum(d["similarity"] for d in retrieved_docs) / len(retrieved_docs)
+        return round(0.7 * (weighted / len(retrieved_docs)) + 0.3 * avg_sim, 3)
 
-        # total_docs = len(retrieved_docs)
-        weighted_score = sum((1 if doc["relevance"] == "HIGH" else 0.6 if doc["relevance"] == "MEDIUM" else 0.3) for doc in retrieved_docs) / len(retrieved_docs)
-        avg_similarity = sum(doc["similarity"] for doc in retrieved_docs) / len(retrieved_docs)
+    # ------------------------------------------------------------------
+    # Fact verification
+    # ------------------------------------------------------------------
 
-        return 0.7 * weighted_score + 0.3 * avg_similarity
+    def verify_facts(self, query: str, retrieved_docs: List[Dict]) -> List[str]:
+        """Use the LLM to extract verified facts from retrieved evidence."""
+        docs_text = "\n".join(
+            f"{i+1}. [{d.get('source','?')}] {d['content'][:300]}"
+            for i, d in enumerate(retrieved_docs)
+        )
 
-    def verify_facts(self, query: str, retrieved_docs: List[Dict]) -> list[str]:
-        """Verify the facts in the retrieved documents using LLM"""
-
-        docs_text = "\n".join([f"{i+1}. {doc['content']}" for i, doc in enumerate(retrieved_docs)])
-
-        verification_prompt = prompts.analyzer_verification_prompt.format(query=query, docs_text=docs_text)
+        verification_prompt = prompts.analyzer_verification_prompt.format(
+            query=query,
+            docs_text=docs_text
+        )
 
         response = self.call_llm([
-            {"role": "system", "content": "You are a fact-checker. Be thorough and skeptical."},
+            {"role": "system", "content": "You are a cybersecurity threat analyst. Be precise and evidence-based."},
             {"role": "user", "content": verification_prompt}
         ])
 
-        verified_contents = response['message']['content']
+        
+        content = response["message"]["content"]
 
-        #parse the verified facts
-        if "INSUFFICIENT_DATA" in verified_contents.upper():
-            verified_facts = ["Insufficient data to verify facts."]
-            print("Analyzer found insufficient data to verify facts.")
-        else:
-            # Parse facts - look for bullet points or numbered items
-            lines = verified_contents.split('\n')
-            verified_facts = []
-            for line in lines:
-                line = line.strip()
-                if not line:
-                    continue
-                # Check if line starts with bullet/number markers
-                if (line.startswith('-') or 
-                    line.startswith('•') or 
-                    line.startswith('*') or
-                    (len(line) > 0 and line[0].isdigit() and ('. ' in line[:4] or ') ' in line[:4]))):
-                    # Clean up the marker
-                    cleaned = line.lstrip('-•*0123456789.) ').strip()
-                    if cleaned:
-                        verified_facts.append(cleaned)
-            
-            # If no bullet points found, but there's content, treat each non-empty line as a fact
-            if not verified_facts and verified_contents.strip():
-                verified_facts = [line.strip() for line in lines if line.strip() and len(line.strip()) > 10]
-            
-            if verified_facts:
-                print(f"Analyzer found {len(verified_facts)} verified facts:")
-                for fact in verified_facts:
-                    print(f" - {fact}")
-            else:
-                # Fallback if parsing fails
-                verified_facts = ["Insufficient data to verify facts."]
-                print("Analyzer could not parse facts from response.")
+        if "INSUFFICIENT_DATA" in content.upper():
+            self.log("Insufficient evidence to verify facts.")
+            return ["INSUFFICIENT_DATA"]
 
-        return verified_facts
-    
+        # Parse bullet-point facts
+        facts = []
+        for line in content.splitlines():
+            line = line.strip()
+            if not line:
+                continue
+            if line.startswith(("-", "•", "*")) or (line[0].isdigit() and line[1:3] in (". ", ") ")):
+                cleaned = line.lstrip("-•*0123456789.) ").strip()
+                if cleaned:
+                    facts.append(cleaned)
+
+        if not facts and content.strip():
+            facts = [l.strip() for l in content.splitlines() if len(l.strip()) > 15]
+
+        if not facts:
+            return ["INSUFFICIENT_DATA"]
+
+        self.log(f"Verified {len(facts)} facts.")
+        return facts
+
+    # ------------------------------------------------------------------
+    # MITRE ATT&CK assessment
+    # ------------------------------------------------------------------
+
+    def build_mitre_assessment(self, retrieved_docs: List[Dict], query: str) -> str:
+        """
+        Collect all flags from inline log docs + MITRE technique docs,
+        then build a structured ATT&CK assessment string.
+        """
+        if self.mitre_kb is None:
+            return "MITRE ATT&CK analysis unavailable (no knowledge base loaded)."
+
+        # Gather flags from inline log events
+        all_flags = []
+        for doc in retrieved_docs:
+            all_flags.extend(doc.get("flags", []))
+
+        # Also pull flags from vector DB log_event results
+        for doc in retrieved_docs:
+            if doc.get("metadata", {}).get("type") == "log_event":
+                flag_str = doc["metadata"].get("flags", "")
+                if flag_str:
+                    all_flags.extend(flag_str.split(", "))
+
+        all_flags = list(set(all_flags))  # deduplicate
+
+        if not all_flags:
+            # Fall back to keyword search against the query
+            keyword_techniques = self.mitre_kb.search_by_keyword(query.split()[0] if query else "attack")
+            if keyword_techniques:
+                lines = [
+                    f"  • {t['id']} - {t['name']} [{', '.join(t['tactics'])}]"
+                    for t in keyword_techniques[:3]
+                ]
+                return "Possible relevant techniques (keyword match):\n" + "\n".join(lines)
+            return "No specific MITRE techniques identified from available evidence."
+
+        mitre_summary = self.mitre_kb.get_mitre_summary_for_flags(all_flags)
+
+        # Use LLM to produce a concise analyst interpretation
+        llm_response = self.call_llm([
+            {"role": "system", "content": "You are a cybersecurity expert specialising in MITRE ATT&CK."},
+            {"role": "user", "content": prompts.analyzer_mitre_prompt.format(
+                flags=", ".join(all_flags),
+                mitre_summary=mitre_summary
+            )}
+        ])
+        llm_interpretation = llm_response["message"]["content"].strip()
+
+        return f"{mitre_summary}\n\nAnalyst Interpretation:\n{llm_interpretation}"
+
+    # ------------------------------------------------------------------
+    # Main process
+    # ------------------------------------------------------------------
+
     def process(self, state: Dict) -> Dict:
-        """Analyze retrieved information and prepare for answer generation."""
         query = state["query"]
-        retrieved_docs = state["retrieved_docs"]
+        retrieved_docs = state.get("retrieved_docs", [])
 
-        # Calculate quality score
+        # Quality score
         quality_score = self.calculate_quality_score(retrieved_docs)
         state["quality_score"] = quality_score
-        self.log(f"Calculated quality score: {quality_score:.2f}")
+        self.log(f"Quality score: {quality_score:.3f}")
 
-        # Verify facts
+        # Fact verification
         verified_facts = self.verify_facts(query, retrieved_docs)
         state["verified_facts"] = verified_facts
 
-        if verified_facts == ["INSUFFICIENT_DATA"]:
-            self.log("Insufficient data to verify facts")
-        
+        # MITRE assessment
+        mitre_assessment = self.build_mitre_assessment(retrieved_docs, query)
+        state["mitre_assessment"] = mitre_assessment
+        self.log("MITRE assessment complete.")
+
+        state.setdefault("agent_logs", [])
         state["agent_logs"].append(
-            f"Analyzer: Quality {quality_score:.2f}, "
-            f"verified {len(verified_facts)} facts"
+            f"Analyzer: quality={quality_score:.2f} | "
+            f"facts={len(verified_facts)} | "
+            f"mitre={'yes' if mitre_assessment else 'no'}"
         )
-        self.log(f"Analyzer verified facts")
+        state.setdefault("reasoning_steps", [])
+        state["reasoning_steps"].append(
+            f"OBSERVATION: Analysis complete — {len(verified_facts)} facts verified, "
+            f"quality={quality_score:.2f}"
+        )
+
         return state

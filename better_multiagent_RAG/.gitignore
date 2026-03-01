@@ -1,2 +1,19 @@
-./memory
-./chroma_db
+# Databases & persistent storage
+memory/
+chroma_db/
+
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
+
+# Logs
+logs/
+*.log
+
+# Environment
+.env
+*.env
+
+# MITRE STIX file (large, ~300MB)
+enterprise-attack.json
