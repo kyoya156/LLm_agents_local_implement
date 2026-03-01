@@ -101,7 +101,7 @@ class MitreKnowledgeBase:
                 "name": obj.get("name", ""),
                 "tactics": tactics,
                 "description": obj.get("description", "")[:500],
-                "detection": obj.get("x_mitre_detection", "No detection guidance available."),
+                "detection": "See https://attack.mitre.org/techniques/" + attack_id,
                 "platforms": obj.get("x_mitre_platforms", []),
                 "data_sources": obj.get("x_mitre_data_sources", []),
                 "url": url,

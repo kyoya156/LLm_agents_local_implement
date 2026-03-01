@@ -85,7 +85,7 @@ answer_generator_prompt = """You are a professional cybersecurity analyst writin
                             Overall Severity: {severity}
                             Quality of Evidence: {quality_score:.2f}/1.00
 
-                            Prior Incident Context (for continuity):
+                            PRIOR INCIDENT CONTEXT:
                             {memory_context}
 
                             Verified Facts:
@@ -94,14 +94,19 @@ answer_generator_prompt = """You are a professional cybersecurity analyst writin
                             MITRE ATT&CK Assessment:
                             {mitre_assessment}
 
-                            Write a structured incident report with these sections:
-                            1. SUMMARY (1-2 sentences)
-                            2. THREAT ASSESSMENT (what is happening and severity)
-                            3. MITRE ATT&CK CONTEXT (techniques identified and predicted next phases)
-                            4. RECOMMENDED ACTIONS (3-5 bullet points, most urgent first)
+                            IMPORTANT RULES:
+                            - If Query Type is INCIDENT_RESPONSE: write actionable step-by-step response guidance. 
+                            Reference the prior incident context to give specific advice (e.g. mention actual IPs to block).
+                            Do NOT re-analyze the logs. Do NOT repeat the attack timeline. Focus ONLY on what to DO next.
+                            - If Query Type is LOG_ANALYSIS: write a full threat assessment of what happened.
+                            - Only use MITRE technique names and descriptions from the MITRE Assessment section above.
+                            NEVER invent or guess technique names.
 
-                            IMPORTANT: Only use information from the verified facts and MITRE assessment above.
-                            Do not invent IP addresses, usernames, or technical details not present in the evidence."""
+                            Write a structured report with:
+                            1. SUMMARY (1-2 sentences, tailored to query type)
+                            2. THREAT ASSESSMENT (current attack stage based on ALL known context)
+                            3. MITRE ATT&CK CONTEXT (only techniques confirmed in the assessment above)
+                            4. RECOMMENDED ACTIONS (specific, actionable, reference actual IPs/users from context)"""
 
 
 # ---------------------------------------------------------------------------
@@ -116,15 +121,19 @@ extract_incident_facts_prompt = """From this security interaction, extract key i
                                 FACT: <concise fact about the incident, attacker, or system>
                                 CATEGORY: <one of: attacker_ip / affected_user / attack_technique / timeline / system / recommendation>"""
 
-summarize_prompt = """Summarize this security incident conversation in 2-3 sentences. Focus on:
-                        1. What threats or anomalies were discussed
-                        2. Key systems or users affected
-                        3. Actions recommended or taken
+summarize_prompt = """You are maintaining a running cybersecurity incident timeline.
 
-                        Conversation:
-                        {history_text}
+                    {history_text}
 
-                        Summary:"""
+                    Produce an UPDATED cumulative incident summary that:
+                    1. Preserves ALL findings from the prior summary (if any)
+                    2. Adds new findings from the new messages
+                    3. Always includes: attacker IPs, usernames, attack techniques, timeline of events, current attack stage
+                    4. Notes if the attack appears to be continuing or escalating
+
+                    Keep it under 10 sentences. Be specific — include actual IPs, usernames, and technique names.
+
+                    Updated Incident Timeline:"""
 
 
 # ---------------------------------------------------------------------------

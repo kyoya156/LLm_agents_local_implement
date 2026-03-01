@@ -42,6 +42,7 @@ class AgentState(TypedDict):
     conversation_summary: str
     user_preferences: dict
     learned_facts: list
+    used_memory: bool
 
     # ReAct trace
     reasoning_steps: list
@@ -55,7 +56,7 @@ class AgentState(TypedDict):
 # ---------------------------------------------------------------------------
 # System
 # ---------------------------------------------------------------------------
-class CybersecRAG:
+class MultiAgentRAG:
     """
     Cybersecurity Multi-Agent RAG System.
 
@@ -82,9 +83,9 @@ class CybersecRAG:
         self.answer_generator = AnswerGeneratorAgent(llm_model, self.memory)
         self.memory_agent = MemoryAgent(llm_model, self.memory)
 
-        print(f"[CybersecRAG] Agents initialised | user={user_id} | model={llm_model}")
-        print(f"[CybersecRAG] MITRE KB: {len(self.mitre_kb.techniques)} techniques loaded")
-        print(f"[CybersecRAG] Vector DB: {vector_db.get_collection_count()} documents")
+        print(f"[MultiAgentRAG] Agents initialised | user={user_id} | model={llm_model}")
+        print(f"[MultiAgentRAG] MITRE KB: {len(self.mitre_kb.techniques)} techniques loaded")
+        print(f"[MultiAgentRAG] Vector DB: {vector_db.get_collection_count()} documents")
 
         self.app = self._build_graph().compile()
 
@@ -174,7 +175,7 @@ if __name__ == "__main__":
     if db.get_collection_count() == 0:
         print("No documents in DB — run setup.py first.")
     else:
-        rag = CybersecRAG(db, user_id="test_analyst")
+        rag = MultiAgentRAG(db, user_id="test_analyst")
         result = rag.process_query(
             "Jan  5 12:01:03 server sshd[1234]: Failed password for root from 192.168.1.105 port 22 ssh2\n"
             "Jan  5 12:01:05 server sshd[1234]: Failed password for root from 192.168.1.105 port 22 ssh2\n"

@@ -39,7 +39,7 @@ class MemoryAgent(BaseAgent):
             {"role": "user", "content": extract_prompt}
         ])
 
-       
+        # FIX: response['message'] not response['messages']
         extraction = response["message"]["content"]
 
         if "NONE" in extraction.upper() or "FACT:" not in extraction.upper():
@@ -55,28 +55,46 @@ class MemoryAgent(BaseAgent):
 
     def process(self, state: Dict) -> Dict:
         query = state.get("query", "")
-        
         final_answer = state.get("final_answer", "")
         query_intent = state.get("query_intent", "")
 
         # Update short-term memory
         self.memory.add_to_short_term("user", query)
         self.memory.add_to_short_term("assistant", final_answer)
+        # Note: summarization is triggered automatically inside add_to_short_term
+        # when the 10-message window is full — no manual trigger needed here.
 
         message_count = len(self.memory.short_term_memory.get("conversation_history", []))
-        self.log(f"Message count: {message_count}")
 
-        
-        if message_count % 6 == 0 and message_count > 0:
-            self.log("Summarising conversation for short-term memory...")
-            summary = self.memory.summarize_conversation()
-            self.log(f"Summary: {summary[:80]}")
+        # ── Auto-extract attacker IPs from retrieved docs ──────────────
+        ips_stored = 0
+        for doc in state.get("retrieved_docs", []):
+            ip_str = doc.get("metadata", {}).get("ips", "")
+            if ip_str:
+                for ip in ip_str.split(", "):
+                    ip = ip.strip()
+                    if ip:
+                        self.memory.add_attacker_ip(ip, context=f"seen in {query_intent} event")
+                        ips_stored += 1
+        if ips_stored:
+            self.log(f"Auto-stored {ips_stored} attacker IPs from retrieved docs.")
 
-        # Extract and store security incident facts
+        # ── Auto-extract MITRE techniques from assessment ──────────────
+        techniques_stored = 0
+        mitre_assessment = state.get("mitre_assessment", "")
+        if mitre_assessment and "T1" in mitre_assessment:
+            import re
+            technique_ids = list(set(re.findall(r"T\d{4}(?:\.\d{3})?", mitre_assessment)))
+            for tid in technique_ids:
+                self.memory.add_attack_technique(tid)
+                techniques_stored += 1
+            if techniques_stored:
+                self.log(f"Auto-stored {techniques_stored} MITRE techniques: {technique_ids}")
+
+        # ── LLM-based fact extraction ──────────────────────────────────
         should_extract = self.should_extract_facts(query, query_intent)
-        self.log(f"Should extract incident facts: {should_extract}")
-
         facts_learned = 0
+
         if should_extract:
             learned = self.extract_incident_facts(query, final_answer)
             if learned:
@@ -85,11 +103,11 @@ class MemoryAgent(BaseAgent):
                     category=learned["category"]
                 )
                 facts_learned += 1
-                self.log(f"Learned: [{learned['category']}] {learned['fact']}")
+                self.log(f"Extracted: [{learned['category']}] {learned['fact']}")
             else:
                 self.log("No extractable facts from this interaction.")
 
-        # Sync state with memory
+        # ── Sync state with memory ─────────────────────────────────────
         state["conversation_history"] = self.memory.short_term_memory.get("conversation_history", [])
         state["conversation_summary"] = self.memory.short_term_memory.get("conversation_summary", "")
         state["user_preferences"] = self.memory.long_term_memory.get("user_preferences", {})
@@ -98,13 +116,13 @@ class MemoryAgent(BaseAgent):
         total_facts = len(self.memory.long_term_memory.get("learned_facts", []))
         state.setdefault("agent_logs", [])
         state["agent_logs"].append(
-            f"Memory: {message_count} messages | "
-            f"{total_facts} total facts (+{facts_learned} new)"
+            f"Memory: {message_count} msgs | {total_facts} facts "
+            f"(+{facts_learned} extracted, +{ips_stored} IPs, +{techniques_stored} techniques)"
         )
         state.setdefault("reasoning_steps", [])
         state["reasoning_steps"].append(
             f"OBSERVATION: Memory updated — {message_count} messages, "
-            f"{total_facts} incident facts stored."
+            f"{total_facts} total facts, {ips_stored} IPs, {techniques_stored} MITRE techniques stored."
         )
 
         self.log("Memory update complete.")

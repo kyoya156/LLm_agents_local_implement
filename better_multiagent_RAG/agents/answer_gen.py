@@ -50,23 +50,40 @@ class AnswerGeneratorAgent(BaseAgent):
 
         facts_text = "\n".join(f"- {f}" for f in verified_facts)
         style = self.writing_style(query_intent)
+        has_memory = memory_context and memory_context != "No prior context."
+
+        # System prompt actively instructs the LLM to use memory
+        if has_memory:
+            system_msg = (
+                f"You are a {style} cybersecurity incident reporter with memory of prior incidents.\n\n"
+                f"PRIOR INCIDENT CONTEXT (you MUST reference this if relevant):\n"
+                f"{memory_context}\n\n"
+                f"Instructions:\n"
+                f"- Connect this incident to any previously seen attacker IPs or techniques.\n"
+                f"- Do NOT repeat recommendations already given in the prior context.\n"
+                f"- If this appears to be a continuing attack, say so explicitly."
+            )
+        else:
+            system_msg = (
+                f"You are a {style} cybersecurity incident reporter. "
+                f"This is a new incident with no prior session context."
+            )
 
         answer_prompt = prompts.answer_generator_prompt.format(
             query=query,
             query_intent=query_intent,
             severity=severity,
             quality_score=quality_score,
-            memory_context=memory_context,
+            memory_context=memory_context if has_memory else "No prior incidents in this session.",
             facts_text=facts_text,
             mitre_assessment=mitre_assessment,
         )
 
         response = self.call_llm([
-            {"role": "system", "content": f"You are a {style} cybersecurity incident reporter."},
+            {"role": "system", "content": system_msg},
             {"role": "user", "content": answer_prompt}
         ])
 
-        
         return response["message"]["content"]
 
     def process(self, state: Dict) -> Dict:
@@ -78,11 +95,11 @@ class AnswerGeneratorAgent(BaseAgent):
         severity = state.get("severity", "UNKNOWN")
         confidence = self.confidence_label(quality_score)
 
-       
+        # FIX: pass query to get_context_for_query
         memory_context = self.memory.get_context_for_query(query)
 
         state.setdefault("reasoning_steps", [])
-        
+        # FIX: was a set-in-a-set; now a plain string
         state["reasoning_steps"].append(
             f"THOUGHT: Generating {self.writing_style(query_intent)} report "
             f"with {confidence} confidence (severity={severity})"
@@ -104,7 +121,7 @@ class AnswerGeneratorAgent(BaseAgent):
 
         # Store under BOTH keys so downstream agents and CLI both work
         state["generated_answer"] = final_answer
-        state["final_answer"] = final_answer   
+        state["final_answer"] = final_answer   # FIX: memory_agent reads "final_answer"
 
         state.setdefault("agent_logs", [])
         state["agent_logs"].append(

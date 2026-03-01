@@ -35,7 +35,7 @@ class RetrieverAgent(BaseAgent):
             {"role": "system", "content": "You are a cybersecurity query classifier. Reply with ONE phrase only."},
             {"role": "user", "content": intent_prompt}
         ])
-        
+        # FIX: response['message'] not response['messages']
         raw = response["message"]["content"].strip().upper()
 
         for intent in self.SEARCH_STRATEGIES:
@@ -51,7 +51,7 @@ class RetrieverAgent(BaseAgent):
 
     def should_use_memory(self, query: str) -> bool:
         """Check if prior context is sufficient to answer without vector search."""
-        
+        # FIX: signature now only takes query; memory_context fetched internally
         memory_context = self.memory.get_context_for_query(query)
         if not memory_context or memory_context == "No prior context.":
             return False
@@ -64,7 +64,7 @@ class RetrieverAgent(BaseAgent):
             {"role": "system", "content": "You decide information retrieval strategy."},
             {"role": "user", "content": decision_prompt}
         ])
-        
+        # FIX: response['message'] not response['messages']
         return response["message"]["content"].strip().lower() == "use_memory"
 
     # ------------------------------------------------------------------
@@ -142,22 +142,59 @@ class RetrieverAgent(BaseAgent):
         state["query_intent"] = query_intent
         self.log(f"Intent: {query_intent}")
 
-        # 2. Check memory strategy (result used for logging; we always also search vector DB)
+        # 2. Check if memory alone is sufficient
         use_memory = self.should_use_memory(query)
         self.log(f"Memory sufficient: {use_memory}")
 
-        # 3. Parse inline logs if present
-        inline_docs = self._extract_inline_logs(query)
+        # 3. Only parse inline logs for log-related intents — not for response/intel queries
+        inline_docs = []
+        if query_intent in ("LOG_ANALYSIS", "ANOMALY_DETECTION"):
+            inline_docs = self._extract_inline_logs(query)
 
-        # 4. Vector DB search (CTI reports + MITRE techniques + stored log events)
+        # 4. If memory is sufficient AND no inline logs, answer from memory only
+        if use_memory and not inline_docs:
+            memory_context = self.memory.get_context_for_query(query)
+            self.log("Answering from memory — skipping vector DB search.")
+            state["retrieved_docs"] = [{
+                "rank": 1,
+                "content": memory_context,
+                "similarity": 1.0,
+                "metadata": {"type": "memory"},
+                "relevance": "HIGH",
+                "source": "memory",
+                "flags": [],
+            }]
+            state.setdefault("reasoning_steps", [])
+            state["reasoning_steps"].append(
+                "OBSERVATION: Query answered from session memory — no vector search needed."
+            )
+            state.setdefault("agent_logs", [])
+            state["agent_logs"].append(
+                f"Retriever: memory-only | intent={query_intent}"
+            )
+            return state
+
+        # 5. Vector DB search
         top_k = self.SEARCH_STRATEGIES.get(query_intent, 4)
         raw_results = self.vector_db.search(query, top_k=top_k)
 
-        # 5. Build retrieved_docs list
-        retrieved_docs = list(inline_docs)  # start with inline logs
+        # 6. Build retrieved_docs — inline logs first, then filtered vector results
+        retrieved_docs = list(inline_docs)
         offset = len(retrieved_docs)
 
+        # For INCIDENT_RESPONSE and THREAT_INTEL, skip raw log_event docs —
+        # they add noise and cause the LLM to re-analyse logs instead of giving guidance
+        skip_types = set()
+        if query_intent in ("INCIDENT_RESPONSE", "THREAT_INTEL"):
+            skip_types = {"log_event", "inline_log"}
+
+        skipped = 0
         for i, (distance, doc, metadata) in enumerate(raw_results):
+            doc_type = metadata.get("type", "unknown")
+            if doc_type in skip_types:
+                skipped += 1
+                continue
+
             similarity = max(0.0, 1.0 - distance)
             relevance = self.document_relevance(similarity)
             retrieved_docs.append({
@@ -166,23 +203,42 @@ class RetrieverAgent(BaseAgent):
                 "similarity": similarity,
                 "metadata": metadata,
                 "relevance": relevance,
-                "source": metadata.get("type", "unknown"),
-                "flags": [],   # populated later by analyzer for log events
+                "source": doc_type,
+                "flags": [],
             })
-            self.log(f"Doc {offset+i+1}: sim={similarity:.3f} | {relevance} | {metadata.get('type','?')}")
+            self.log(f"Doc {len(retrieved_docs)}: sim={similarity:.3f} | {relevance} | {doc_type}")
 
-        
+        if skipped:
+            self.log(f"Skipped {skipped} raw log docs (not relevant for {query_intent}).")
+
+        # 7. Always inject memory context so the answer generator can reference prior incidents
+        memory_context = self.memory.get_context_for_query(query)
+        if memory_context != "No prior context.":
+            retrieved_docs.append({
+                "rank": len(retrieved_docs) + 1,
+                "content": f"[PRIOR INCIDENT CONTEXT]\n{memory_context}",
+                "similarity": 0.95,
+                "metadata": {"type": "memory"},
+                "relevance": "HIGH",
+                "source": "memory",
+                "flags": [],
+            })
+            self.log("Injected prior memory context as additional document.")
+
         state["retrieved_docs"] = retrieved_docs
 
         high_count = sum(1 for d in retrieved_docs if d["relevance"] == "HIGH")
         state.setdefault("reasoning_steps", [])
         state["reasoning_steps"].append(
             f"OBSERVATION: Retrieved {len(retrieved_docs)} docs "
-            f"({high_count} HIGH relevance, {len(inline_docs)} from inline logs)"
+            f"({high_count} HIGH relevance, {len(inline_docs)} inline logs, "
+            f"{skipped} log docs skipped for {query_intent}, "
+            f"memory={'injected' if memory_context != 'No prior context.' else 'none'})"
         )
         state.setdefault("agent_logs", [])
         state["agent_logs"].append(
-            f"Retriever: {len(retrieved_docs)} docs | intent={query_intent} | memory={use_memory}"
+            f"Retriever: {len(retrieved_docs)} docs | intent={query_intent} | "
+            f"skipped={skipped} log docs | memory={use_memory}"
         )
 
         self.log(f"Retrieval complete: {len(retrieved_docs)} total sources")
