@@ -1,53 +1,30 @@
 # RAG Multi-Agent Memory Learning Project
 
-## Architecture Overview
-This project implements a multi-agent memory learning system. The architecture consists of various components that work together to enable agents to learn and share memory in a collaborative environment.
+## Overview
+This project focuses on implementing a multi-agent system designed for memory learning tasks, enabling agents to effectively communicate and learn from shared experiences.
 
-## Components Description
-- **Agents**: Autonomous entities capable of learning and decision-making.
-- **Memory System**: Centralized storage for shared information between agents.
-- **Communication Protocol**: Mechanism for agents to exchange data.
+## Architecture
+The architecture consists of multiple interconnected agents that utilize a shared memory system to store, retrieve, and learn from data collaboratively. Each agent plays a specific role and contributes to the overall learning process.
 
-## Installation Instructions
-1. Clone the repository:
-   ```bash
-   git clone https://github.com/kyoya156/RAG-multiagent-memory-learning-project.git
-   ```
-2. Navigate to the project directory:
-   ```bash
-   cd RAG-multiagent-memory-learning-project
-   ```
-3. Install dependencies:
-   ```bash
-   pip install -r requirements.txt
-   ```
+## Core Components
+- **Agents**: Individual units that perform tasks and collaborate with each other.
+- **Memory System**: Centralized storage enabling agents to access and share experiences.
+- **Communication Protocol**: Defines how agents interact and share information.
 
 ## Usage Examples
-```python
-from agents import Agent
-agent = Agent()  
-agent.learn()  
-```
+1. **Setting up the environment**: Instructions on how to set up the project environment, including dependencies and installation.
+2. **Running Agents**: Step-by-step guide on how to run the agents and simulate their interactions.
 
 ## Memory System Details
-The memory system utilizes a neural network to store and retrieve memories, optimizing learning efficiency across agents.
+The memory system is key to enabling collaborative learning, featuring:
+- **Storage**: Data structures for efficient information storage and retrieval.
+- **Retrieval Mechanisms**: Algorithms ensuring that agents can access relevant information quickly.
 
-## Security Log Analysis Examples
-- Example 1: Analyzing agent interactions to identify vulnerabilities.
-- Example 2: Monitoring data access patterns for security breaches.
-
-## Configuration Options
-- **Learning Rate**: Controls how quickly agents adapt their learning.
-- **Communication Frequency**: Sets how often agents share information.
-
-## Recent Updates
-- Improved memory retrieval algorithm for better performance.
-- Added security logging features for enhanced monitoring.
+## ReAct Framework
+The project implements the ReAct (Reactive Agent) framework, allowing agents to adapt their behavior based on the changing environment and the actions of other agents.
 
 ## Development Guidelines
-1. Follow the coding standards outlined in the [Contributor's Guide](CONTRIBUTING.md).
-2. Write tests for new features.
-3. Ensure full code coverage before submitting pull requests.
-
-## Contributing
-We welcome contributions! Please read our [Contributor's Guide](CONTRIBUTING.md) for guidelines on how to get started.
+Developers are encouraged to follow best practices for collaboration and code quality, including:
+- Consistent coding standards
+- Comprehensive documentation
+- Regular code reviews
