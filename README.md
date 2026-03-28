@@ -23,8 +23,3 @@ The memory system is key to enabling collaborative learning, featuring:
 ## ReAct Framework
 The project implements the ReAct (Reactive Agent) framework, allowing agents to adapt their behavior based on the changing environment and the actions of other agents.
 
-## Development Guidelines
-Developers are encouraged to follow best practices for collaboration and code quality, including:
-- Consistent coding standards
-- Comprehensive documentation
-- Regular code reviews
